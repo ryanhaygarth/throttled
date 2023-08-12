@@ -1,40 +1,67 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-thresholdTemp=65 # threshold temperature
-throttleMultiplier=2 # throttle by 2(00)kHz for every 1 degree over threshold
-cores=$(($(nproc)-1)) # get number of cores and subtract 1
-currentFreq=1 # set the current frequency value to 1 initially
+# Credits
+# Sepero/temp-throttle - getting frequencies, making list, setting frequency
 
-tempDir="/sys/devices/platform/applesmc.768" # this directory is where all my temperature sensors are, change this to suit your computer
-logDir="/home/user/.logs/throttled" # change this to where you want logs to be written to
+# these values must be changed
+thresholdTemp=60 # threshold temperature
+throttleMultiplier=2 # throttle by $throttleMultiplier(00)kHz for every 1 degree over threshold
+logDirectory="/home/user/.logs/throttled" # directory to log to
+logFrequency=true # change to false if you do not want frequencies to be logged
+tempDirectories=( "/sys/devices/platform/applesmc.768" "/sys/devices/platform/coretemp.0/hwmon/hwmon2" ) # directories where temperature files are stored
+globbingPatterns=( "temp*_input" "temp*_input" ) # globbing patterns for temperature files. in my case the files were named "temp[number]_input"
 
-availableFreq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies"
+# these directories *might* need to be changed 
+availableFreq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies" 
 minFreq="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq"
 maxFreq="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
 
-freqList=$(seq $(cat $maxFreq) -100000 $(cat $minFreq)) || { echo "failed to calculate frequencies" >> "$logDir/error"; exit 1; } # make a list of available frequencies
+mkdir -p "$logDirectory" # make sure log directory exists
+cores=$(($(nproc)-1)) # get number of cores and subtract 1
+currentFreq=1 # set the current frequency value to 1 initially
+
+if [[ -f $availableFreq ]]; then
+    # get list of frequencies if file available 
+    freqList=$(cat $availableFreq | xargs -n1 | sort -g -r | xargs) || { echo "error processing scaling_available_frequencies" >> "$logDirectory/error"; exit 1; } 
+elif [[ -f $minFreq && -f $maxFreq ]]; then
+    # else make a list of frequencies between min and max
+    freqList=$(seq $(cat $maxFreq) -100000 $(cat $minFreq)) || { echo "error processing min and max frequency files" >> "$logDirectory/error"; exit 1; } 
+else
+    echo "unable to find available frequencies" >> "$logDirectory/error"
+    exit 1  
+fi
+
 freqListLen=$(echo $freqList | wc -w)
 
 setFreq () {
-    toSet=$(echo $freqList | cut -d " " -f $currentFreq)
+    freqToSet=$(echo $freqList | cut -d " " -f $currentFreq) # choose current frequency from list
     for i in $(seq 0 $cores); do
-        { echo $toSet 2> /dev/null > /sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq; } || 
-        { echo "$(date):failed to set frequency" >> "$logDir/error"; exit 1; }
+        { echo $freqToSet 2> /dev/null > /sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq; } || 
+        { echo "$(date):failed to set frequency of core $(($i + 1))" >> "$logDirectory/error"; }
     done
-    echo "$(date +%T) $toSet" >> "$logDir/log"
+    if $logFrequency; then 
+        echo "$(date +%T) $freqToSet" >> "$logDirectory/log"
+    fi
 }
 
 getTemp () {
     tempValues=() # make an array of the temperature values from the different files
-    for file in "$tempDir/temp*_input"; do # temperature files in my case are in the format of temp[number]_input
-        tempValues+=($(cat $file)) # add the temperature to the array
+    for i in "${!tempDirectories[@]}"; do
+        directory="${tempDirectories[$i]}"
+        globbingPattern="${globbingPatterns[$i]}"
+        for file in $directory/$globbingPattern; do
+            if [[ -f "$file" ]]; then
+                tempValues+=($(cat $file))
+            else
+                echo "$directory/$globbingPattern not found" >> "$logDirectory/error"
+            fi
+        done
     done
     sortedTemps=($(printf "%s\n" "${tempValues[@]}" | sort -nr)) # sort the array in descending order
     temp=$((${sortedTemps[0]} / 1000)) # get the first value and divide by 1000
 }
 
 setFreq $currentFreq # unthrottle when first starting
-mkdir -p "$logDir" # make sure log directory exists
 
 while true; do
     getTemp 
