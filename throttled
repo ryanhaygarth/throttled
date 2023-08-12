@@ -1,0 +1,50 @@
+#!/bin/bash
+
+thresholdTemp=65 # threshold temperature
+throttleMultiplier=2 # throttle by 2(00)kHz for every 1 degree over threshold
+cores=$(($(nproc)-1)) # get number of cores and subtract 1
+currentFreq=1 # set the current frequency value to 1 initially
+
+tempDir="/sys/devices/platform/applesmc.768" # this directory is where all my temperature sensors are, change this to suit your computer
+logDir="/home/user/.logs/throttled" # change this to where you want logs to be written to
+
+availableFreq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies"
+minFreq="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq"
+maxFreq="/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"
+
+freqList=$(seq $(cat $maxFreq) -100000 $(cat $minFreq)) || { echo "failed to calculate frequencies" >> "$logDir/error"; exit 1; } # make a list of available frequencies
+freqListLen=$(echo $freqList | wc -w)
+
+setFreq () {
+    toSet=$(echo $freqList | cut -d " " -f $currentFreq)
+    for i in $(seq 0 $cores); do
+        { echo $toSet 2> /dev/null > /sys/devices/system/cpu/cpu$i/cpufreq/scaling_max_freq; } || 
+        { echo "$(date):failed to set frequency" >> "$logDir/error"; exit 1; }
+    done
+    echo "$(date +%T) $toSet" >> "$logDir/log"
+}
+
+getTemp () {
+    tempValues=() # make an array of the temperature values from the different files
+    for file in "$tempDir/temp*_input"; do # temperature files in my case are in the format of temp[number]_input
+        tempValues+=($(cat $file)) # add the temperature to the array
+    done
+    sortedTemps=($(printf "%s\n" "${tempValues[@]}" | sort -nr)) # sort the array in descending order
+    temp=$((${sortedTemps[0]} / 1000)) # get the first value and divide by 1000
+}
+
+setFreq $currentFreq # unthrottle when first starting
+mkdir -p "$logDir" # make sure log directory exists
+
+while true; do
+    getTemp 
+    if [[ $temp -gt $thresholdTemp ]]; then # check if temperature is above threshold
+        tempDifference=$(($temp - $thresholdTemp)) # calculate the difference between the threshold and the actual temp
+        currentFreq=$(($tempDifference * $throttleMultiplier)) # multiply temperature over threshold by multiplier
+        setFreq $currentFreq
+    else
+        currentFreq=1 # unthrottle if not above threshold
+        setFreq $currentFreq
+    fi
+    sleep 2
+done
