@@ -1,0 +1,8 @@
+[Unit]
+Description=Thermal throttle daemon
+
+[Service]
+ExecStart=/bin/bash /path/to/throttled/script
+
+[Install]
+WantedBy=multi-user.target
