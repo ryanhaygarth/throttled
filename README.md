@@ -6,7 +6,6 @@ This repository contains a bash script designed to address thermal throttling is
 - [How It Works](#how-it-works)
 - [Installation](#installation)
 - [Systemd Service](#systemd-service)
-- [Logs](#logs)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -14,7 +13,7 @@ This repository contains a bash script designed to address thermal throttling is
 
 The thermal throttling script is written in bash and reads temperature vaules from a directory of sensors.
 
-The file names are in the format of temp[number]_input. A command to find the right directory is in the [Installation](#installation) section.
+The file names and directories are customisable. A command to find the right directories is in the [Installation](#installation) section.
 
 The script works by sorting all the temperature values, identifying the highest temperature, and calculating the difference between that temperature and a predefined threshold. The difference is then multiplied by a configurable value, allowing for more or less aggressive throttling for every degree over the set temperature. For example, if you set the `throttleMultiplier` to 2, it means that for every degree over the threshold temperature, the script will throttle down by 200kHz.
 
@@ -36,17 +35,12 @@ cd throttled
 
 3. Open the `throttled` script in a text editor and customize the following variables according to your needs:
 
-   - `thresholdTemperature`: The temperature above which throttling will start.
+   - `thresholdTemp`: The temperature above which throttling will start.
    - `throttleMultiplier`: A value that determines the aggressiveness of throttling. The default is 2, but you can adjust it to your preference. For every degree over the threshold temperature, the script will throttle down by `throttleMultiplier * 100kHz`.
-   - `tempDir`: The directory where the temperature files are located. For me it was `/sys/devices/platform/applesmc.768`. To find the drectory, run this command `find /sys -name "temp**"`.
-   - `logDir`: The directory where you want the logs to be logged.
-
-   ```bash
-   thresholdTemperature=<threshold-temperature>
-   throttleMultiplier=<throttle-multiplier>
-   tempDir="/path/to/temperature/sensors"
-   logDir="/path/to/log/directory"
-   ```
+   - `logDirectory`: The directory where you want the logs to be written to.
+   - `logFrequency`: Change to false if you do not wish to have the frequency logged.
+   - `tempDirectories`: The directories where the temperature files are located. To find the drectories, run this command `find /sys -name "temp*"`.
+   - `globbingPatterns`: The globbing patterns for each directory in the `tempDirectories` array
 
 4. Save the changes.
 
@@ -64,7 +58,7 @@ sudo ./throttled
 
 ## Systemd Service
 
-To ensure that the thermal throttling process starts automatically on boot, a systemd service file has been included in this repository. The service file is named `throttled.service`.
+To ensure that the thermal throttling process starts automatically on boot, a systemd service file has been included.
 
 To enable the automatic startup of the thermal throttling process, follow these steps:
 
@@ -97,16 +91,6 @@ sudo systemctl daemon-reload
 ```bash
 sudo systemctl enable throttled
 ```
-
-## Logs
-
-The modified code includes a logging feature that records the throttling frequency and any errors encountered during the process. The log files are stored in the directory you specified as `logDir` during the installation steps.
-
-Inside the log directory, you will find two files, one that reports any errors and another that shows the frequency that is being set.
-
-## Todo
-
-Add the ability for multiple directories to be searched, with each directory having their own globbing pattern.
 
 ## Contributing
 
