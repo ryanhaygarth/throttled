@@ -5,7 +5,7 @@ This repository contains a bash script designed to address thermal throttling is
 ## Table of Contents
 - [How It Works](#how-it-works)
 - [Installation](#installation)
-- [Systemd Service](#systemd-service)
+- [Service Files](#service-files)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -56,41 +56,11 @@ chmod +x throttled
 sudo ./throttled
 ```
 
-## Systemd Service
+## Service Files
 
-To ensure that the thermal throttling process starts automatically on boot, a systemd service file has been included.
+To ensure that the thermal throttling process starts automatically on boot, systemd and openrc service files have been provided.
 
-To enable the automatic startup of the thermal throttling process, follow these steps:
-
-1. Copy the `throttled.service` file to the appropriate systemd directory.
-
-```bash
-sudo cp throttled.service /etc/systemd/system/
-```
-
-2. Open the `throttled.service` file in a text editor and find the `ExecStart` line in the `[Service]` section.
-
-3. Modify the `ExecStart` line to point to the location of the `throttled` script on your system. For example:
-
-```bash
-ExecStart=/bin/bash /path/to/throttled
-```
-
-Replace `/path/to/throttled` with the actual path to the `throttled` script in your system.
-
-4. Save the changes.
-
-5. Reload the systemd configuration.
-
-```bash
-sudo systemctl daemon-reload
-```
-
-6. Enable the thermal throttling service.
-
-```bash
-sudo systemctl enable throttled
-```
+Replace `/path/to/throttled/script` with the actual path to the `throttled` script in your system.
 
 ## Contributing
 
