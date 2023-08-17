@@ -1,0 +1,5 @@
+#!/sbin/openrc-run
+name="throttled daemon"
+command="/path/to/throttled/script"
+command_backqround=true
+pidfile=/var/throttled.pid
